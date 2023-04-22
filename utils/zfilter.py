@@ -15,15 +15,15 @@ class RunningStat(object):
 
     def push(self, x):
         #fix inhomogenous shape error
-        try:
-            x = np.asarray(x)
-        except:
-            x = np.asarray(x[0])
+        if(len(x)==2 and x[1]=={}):
+            x = np.asarray(x[0],dtype=object)
+        else:
+            x = np.asarray(x,dtype=object)
         #pdb.set_trace()
         assert x.shape == self._M.shape
         self._n += 1
         if self._n == 1:
-            self._M[...] = x
+            self._M[...] = x[0]
         else:
             oldM = self._M.copy()
             self._M[...] = oldM + (x - oldM) / self._n
@@ -70,10 +70,10 @@ class ZFilter:
             self.rs.push(x)
         if self.demean:
             #changed to fix dimension issues
-            try:
-                x = x - self.rs.mean
-            except:
+            if(len(x)==2 and x[1]=={}):
                 x = x[0] - self.rs.mean
+            else:
+                x = x - self.rs.mean
         if self.destd:
             x = x / (self.rs.std + 1e-8)
         if self.clip:

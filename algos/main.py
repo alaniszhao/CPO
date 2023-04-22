@@ -5,6 +5,7 @@ import sys
 import pickle
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import matplotlib.pyplot as plt
 
 from utils import *
 import statistics as st
@@ -15,6 +16,8 @@ from algos.cpo import cpo_step
 from core.common import estimate_advantages, estimate_constraint_value
 from core.agent import Agent
 import pdb
+import warnings
+warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning) 
 CUDA_LAUNCH_BLOCKING=1
 
 #summarizing using tensorboard
@@ -87,9 +90,9 @@ def constraint_cost(state, action):
     for i in range(len(state)):
         currPos=state[i][0].item()
         if (currPos>1.0 and action[i].item()==1.0):
-            costs[i]=1;
+            costs[i]=1
         elif (currPos<-1.0 and action[i].item()==0.):
-            costs[i]=1;
+            costs[i]=1
     costs.to(device)
     return costs
 
@@ -235,7 +238,14 @@ def main_loop():
         
     # dump expert_avg_reward, num_of_steps, num_of_episodes
     save_info_obj.dump_lists(best_avg_reward, num_of_steps, num_of_episodes, total_num_episodes, total_num_steps, rewards_std, env_avg_reward, v_loss_list, p_loss_list, eval_avg_reward, eval_avg_reward_std)
+
+# To detach each tensor in the list
+    #for i in range(len(env_avg_reward)):
+        #env_avg_reward[i] = env_avg_reward[i].detach().numpy()
     
+    plt.plot(env_avg_reward)
+    plt.show()
+
     print('Best eval R:', best_avg_reward)
     return best_avg_reward, best_std, iter_for_best_avg_reward
 
