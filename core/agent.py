@@ -36,6 +36,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
     reward_episode_list = []
     c_reward_episode_list = []
     env_reward_episode_list = []
+    total_cost = 0
     """
     #randomize environment seed
     seed = np.random.randint(1,1000)
@@ -51,28 +52,35 @@ def collect_samples(pid, queue, env, policy, custom_reward,
         env_reward_episode = 0
         reward_episode_list_1 = []
         env_reward_episode_list_1 = []
+        costs=0
         
         for t in range(10000):
             #select an action with the policy
             state_var = tensor(state).unsqueeze(0)
+            '''
             with torch.no_grad():
                 if mean_action:
                     action = policy(state_var)[0][0].numpy()
                 else:
-                    action = policy.select_action(state_var)[0].numpy()
+                    action = policy(state_var)[0][0].numpy()
+                    #action = policy.select_action(state_var)[0].numpy()
             #print(action)
-            action = int(action) if policy.is_disc_action else action.astype(np.float64)
+            '''
+            action =policy.select_action(state)
             #step through the environment
-            next_state, reward, done, _,_ = env.step(action)
+            #next_state, reward, done, _ = env.step(action)
+            reward, cost, done, info = env.step(action)
+            next_state = env.get_state()
             env_reward_episode += reward
             env_reward_episode_list_1.append(reward)
+            costs+=cost
 
             if running_state is not None:
                 next_state = running_state(next_state)
 
             mask = 0 if done else 1
 
-            memory.push(state, action, mask, next_state, reward)
+            memory.push(state, action, mask, next_state, reward, cost)
 
             if render:
                 env.render()
@@ -86,12 +94,14 @@ def collect_samples(pid, queue, env, policy, custom_reward,
         num_episodes += 1
         env_reward_episode_list.append(env_reward_episode)
         env_total_reward += env_reward_episode
+        total_cost += costs
         min_reward = min(min_reward, env_reward_episode)
         max_reward = max(max_reward, env_reward_episode)
 
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['env_total_reward'] = env_total_reward
+    log['env_avg_cost'] = total_cost/num_episodes
     log['env_avg_reward'] = env_total_reward / num_episodes
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward

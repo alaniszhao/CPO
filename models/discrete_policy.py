@@ -37,6 +37,7 @@ class DiscretePolicy(nn.Module):
 
     #select action based on probabilities
     def select_action(self, x):
+        print(x)
         action_prob = self.forward(x)
         action = action_prob.multinomial(1)
         return action

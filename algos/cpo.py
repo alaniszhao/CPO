@@ -124,11 +124,11 @@ def cpo_step(env_name, policy_net, value_net, states, actions, returns, advantag
         kl = policy_net.get_kl(states)
         kl = kl.mean()
 
-        grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True)
+        grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True, allow_unused=True)
         flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
 
         kl_v = (flat_grad_kl * v).sum()
-        grads = torch.autograd.grad(kl_v, policy_net.parameters())
+        grads = torch.autograd.grad(kl_v, policy_net.parameters(),allow_unused=True)
         flat_grad_grad_kl = torch.cat([grad.contiguous().view(-1) for grad in grads]).detach()
 
         return flat_grad_grad_kl + v * damping
@@ -148,7 +148,8 @@ def cpo_step(env_name, policy_net, value_net, states, actions, returns, advantag
     
     # Obtain objective gradient and step direction
     loss = get_loss()
-    grads = torch.autograd.grad(loss, policy_net.parameters())
+    grads = torch.autograd.grad(loss, policy_net.parameters(),allow_unused=True)
+    grads = grads
     loss_grad = torch.cat([grad.view(-1) for grad in grads]).detach() #g  
     grad_norm = False
     if grad_norm == True:
@@ -158,7 +159,8 @@ def cpo_step(env_name, policy_net, value_net, states, actions, returns, advantag
         stepdir = stepdir/torch.norm(stepdir)
     
     #Obtain constraint gradient and step direction
-    if env_name == "CartPole-v1" or env_name == "MountainCar-v0":
+    if env_name == "CartPole-v1" or env_name == "MountainCar-v0" or env_name=="car_yaw":
+        #agent_data = torch.cat([states, actions], 1)
         agent_data = torch.cat([states, actions.unsqueeze(-1)], 1) #Arrange agent and expert data in required format 
     else:
         agent_data = torch.cat([states, actions], 1)
@@ -166,6 +168,7 @@ def cpo_step(env_name, policy_net, value_net, states, actions, returns, advantag
     cost_loss = get_cost_loss()
     #print('cost_loss', cost_loss)
     cost_grads = torch.autograd.grad(cost_loss, policy_net.parameters(), allow_unused=True)
+    cost_grads = cost_grads
     cost_loss_grad = torch.cat([grad.view(-1) for grad in cost_grads]).detach() #a
     cost_loss_grad = cost_loss_grad/torch.norm(cost_loss_grad)
     cost_stepdir = conjugate_gradients(Fvp, -cost_loss_grad, 10) #(H^-1)*a

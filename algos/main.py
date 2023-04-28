@@ -6,6 +6,7 @@ import pickle
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import matplotlib.pyplot as plt
+from contenv.RL.envs.car_yaw_dynamics_4D import *
 
 from utils import *
 import statistics as st
@@ -36,14 +37,15 @@ if torch.cuda.is_available():
 
 """environment"""
 #commented out printing
-env = gym.make(args.env_name)
+env = car_dynamics()
 #state dimensions - screenshot of the game, characteristics described as a vector
 #mountain car - velocity and position, midpoint is origin
-state_dim = env.observation_space.shape[0]
+state_dim = env.get_state_dim()
+action_dim = env.get_action_dim()
 #print(state_dim)
 #action space shape is numerical structure of the legitimate actions that can b applied
 #use discrete policy if is_disc_action
-is_disc_action = len(env.action_space.shape) == 0
+is_disc_action = True #len(env.action_space.shape) == 0
 #print(env.action_space.shape)
 #mean, std, etc from the observation state
 running_state = ZFilter((state_dim,), clip=5)
@@ -51,7 +53,7 @@ running_state = ZFilter((state_dim,), clip=5)
 
 """seeding - changed due to gym seeding changes"""
 np.random.seed(args.seed)
-env.action_space.seed(args.seed)
+#env.action_space.seed(args.seed)
 torch.manual_seed(args.seed)
 #np.random.seed(args.seed)
 #torch.manual_seed(args.seed)
@@ -67,10 +69,10 @@ if args.model_path is None:
     #if not using pre-trained model, choose discrete policy
     #should usually be discrete policy
     #discrete vs continuous - pre-defined actions or learned actions/spaced out data vs constant data
-    if is_disc_action:
-        policy_net = DiscretePolicy(state_dim, env.action_space.n)
+    if False and is_disc_action:
+        policy_net = DiscretePolicy(state_dim, action_dim)
     else:
-        policy_net = Policy(state_dim, env.action_space.shape[0], log_std=args.log_std)
+        policy_net = Policy(state_dim, action_dim, log_std=args.log_std)
     value_net = Value(state_dim)
 else:
     policy_net, value_net, running_state = pickle.load(open(args.model_path, "rb"))
@@ -85,14 +87,11 @@ agent = Agent(env, policy_net, device, running_state=running_state, render=args.
 #rewards that worked: 0.01, 0.03
 """define constraint cost function"""    
 #cost function: 0 if within certain area and direction, cost otherwise
-def constraint_cost(state, action):
-    costs = tensor(0.0 * np.ones(state.shape[0]), dtype=dtype)
+
+def constraint_cost(state, action, c):
+    costs = tensor(0.0 * np.ones(len(state)), dtype=dtype)
     for i in range(len(state)):
-        currPos=state[i][0].item()
-        if (currPos>1.0 and action[i].item()==1.0):
-            costs[i]=1
-        elif (currPos<-1.0 and action[i].item()==0.):
-            costs[i]=1
+        costs[i]=c[i]
     costs.to(device)
     return costs
 
@@ -101,6 +100,7 @@ def update_params(batch, d_k=0):
     actions = torch.from_numpy(np.stack(batch.action)[:args.max_batch_size]).to(dtype).to(device)
     rewards = torch.from_numpy(np.stack(batch.reward)[:args.max_batch_size]).to(dtype).to(device)
     masks = torch.from_numpy(np.stack(batch.mask)[:args.max_batch_size]).to(dtype).to(device)
+    costs = torch.from_numpy(np.stack(batch.cost)[:args.max_batch_size]).to(dtype).to(device)
         
     with torch.no_grad():
         values = value_net(states)
@@ -108,8 +108,8 @@ def update_params(batch, d_k=0):
     """get advantage estimation from the trajectories"""
     #take information and estimate the advantages
     advantages, returns = estimate_advantages(rewards, masks, values, args.gamma, args.tau, device)
-    
-    costs = constraint_cost(states, actions)
+    #c = constraint_cost(states, actions, costs)
+    #print(c)
     cost_advantages, _ = estimate_advantages(costs, masks, values, args.gamma, args.tau, device)
     constraint_value = estimate_constraint_value(costs, masks, args.gamma, device)
     constraint_value = constraint_value[0]
@@ -117,7 +117,6 @@ def update_params(batch, d_k=0):
     """perform update"""
     #update the policy
     v_loss, p_loss, cost_loss = cpo_step(args.env_name, policy_net, value_net, states, actions, returns, advantages, cost_advantages, constraint_value, d_k, args.max_kl, args.damping, args.l2_reg)
-        
     return v_loss, p_loss, cost_loss
 
 
@@ -196,12 +195,15 @@ def main_loop():
         # evaluate the current policy
         running_state.fix = True  #Fix the running state
         agent.num_threads = 20
+        agent.mean_action = False
+        '''
         if args.env_name == "CartPole-v1" or args.env_name == "MountainCar-v0":
             agent.mean_action = False
         else:
             agent.mean_action = True
+        '''
         seed = np.random.randint(1,1000)
-        env.action_space.seed(seed)
+        #env.action_space.seed(seed)
         eval_reward_type = 4
         #collect samples for the agent and evaluate the policy
         _, eval_log = agent.collect_samples(20000)
@@ -247,7 +249,6 @@ def main_loop():
     plt.show()
 
     print('Best eval R:', best_avg_reward)
-    return best_avg_reward, best_std, iter_for_best_avg_reward
-
+    return best_avg_reward, best_std
 if __name__ == '__main__':
     main_loop()

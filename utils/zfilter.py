@@ -15,7 +15,9 @@ class RunningStat(object):
 
     def push(self, x):
         #fix inhomogenous shape error
-        if(len(x)==2 and x[1]=={}):
+        if(type(x)==np.float64 or type(x)==int):
+            x = np.full(self._M.shape[0],x,dtype=np.float64)
+        elif(len(x)==2 and x[1]=={}):
             x = np.asarray(x[0],dtype=object)
         else:
             x = np.asarray(x,dtype=object)
@@ -66,9 +68,13 @@ class ZFilter:
         self.fix = False
 
     def __call__(self, x, update=True):
+        if(type(x)!=np.ndarray and x==None):
+            x=np.zeros(4)
         if update and not self.fix:
             self.rs.push(x)
         if self.demean:
+            if(type(x)==np.float64 or type(x)==int):
+                x = np.full(4,x,dtype=np.float64)
             #changed to fix dimension issues
             if(len(x)==2 and x[1]=={}):
                 x = x[0] - self.rs.mean

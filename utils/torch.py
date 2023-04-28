@@ -28,8 +28,8 @@ def set_flat_params_to(model, flat_params):
     prev_ind = 0
     for param in model.parameters():
         flat_size = int(np.prod(list(param.size())))
-        param.data.copy_(
-            flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
+        try:param.data.copy_(flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
+        except: continue
         prev_ind += flat_size
 
 #return flattened gradient

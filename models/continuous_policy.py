@@ -2,11 +2,11 @@ import torch.nn as nn
 import torch
 from utils.math import *
 import pdb
+import random
 
 class Policy(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_size=(100, 100), activation='tanh', log_std=0):
         super().__init__()
-        #not discrete, continous
         self.is_disc_action = False
         if activation == 'tanh':
             self.activation = torch.tanh
@@ -25,27 +25,25 @@ class Policy(nn.Module):
         self.action_mean.weight.data.mul_(0.1)
         self.action_mean.bias.data.mul_(0.0)
 
-        #log of the standard deviation
         self.action_log_std = nn.Parameter(torch.ones(1, action_dim) * log_std)
 
     def forward(self, x):
         for affine in self.affine_layers:
-            x = self.activation(affine(x))
+            x = self.activation(affine(torch.Tensor(x)))
 
-        #mean, std, and log std instead of action prob
         action_mean = self.action_mean(x)
-        action_log_std = self.action_log_std.expand_as(action_mean)
+        action_log_std = self.action_log_std[0].expand_as(action_mean)
         action_std = torch.exp(action_log_std)
 
         return action_mean, action_log_std, action_std
 
     def select_action(self, x):
-        action_mean, _, action_std = self.forward(x)
-        action = torch.normal(action_mean, action_std)
-        return action
+        action_mean, action_log_std, action_std = self.forward(x)
+        z=random.gauss(0,1)
+        delta = math.sqrt(action_std) * z + action_mean
+        return delta.detach().numpy()[0]
 
     def get_kl(self, x):
-        #determined by means, stds, and log stds instead of probabilities
         mean1, log_std1, std1 = self.forward(x)
 
         mean0 = mean1.detach()
@@ -62,7 +60,6 @@ class Policy(nn.Module):
         return normal_log_density(actions, action_mean, action_log_std, action_std)
 
     def get_fim(self, x):
-        #based on mean and std instead of prob
         #pdb.set_trace()
         mean, _, _ = self.forward(x)
         #vec of len = No. of states*size of action e.g. cov_inv.shape = 2085*6
@@ -78,5 +75,3 @@ class Policy(nn.Module):
             id += 1
         #pdb.set_trace()
         return cov_inv.detach(), mean, {'std_id': std_id, 'std_index': std_index}
-
-
