@@ -55,7 +55,7 @@ def parse_all_arguments():
                         help="intermediate model saving interval (default: 0, means don't save)")
        
     #cpo arguments
-    parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+    parser.add_argument('--max-kl', type=float, default=0.01, metavar='G',
                         help='max kl value (default: 1e-2)')
     parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                         help='damping (default: 1e-2)')
